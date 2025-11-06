@@ -1231,12 +1231,10 @@
       };
 
       const PROXIES = [
+          'https://corsproxy.io/?',
           'https://api.allorigins.win/raw?url=',
-          'https://cors-anywhere.herokuapp.com/',
-          'https://api.codetabs.com/v1/proxy/?quest=',
-          'https://proxy-cors-simple.vercel.app/api?url=', 
-          'https://yacdn.org/proxy/',                       
-          'https://cors-proxy.fringe.co.kr/?'              
+          'https://yacdn.org/proxy/',
+          'https://cors-proxy.fringe.co.kr/?'
       ];
       const GIST_URL = "https://gist.githubusercontent.com/Ciento20/f7847e86d06e5011706fa76f2dab90be/raw";
       const ELCANO_URL = 'https://ipfs.io/ipns/elcano.top';
@@ -2096,22 +2094,21 @@
           const doc = parser.parseFromString(htmlContent, 'text/html');
           const table = doc.querySelector('table');
           
-          const sportEmojiMap = {
-              'futbol': '⚽',
-              'baloncesto': '🏀',
-              'tenis': '🎾',
-              'boxeo': '🥊',
-              'ciclismo': '🚴',
-              'motor': '🏁',
-              'formula 1': '🏎️',
-              'f1': '🏎️'
-          };
           
+          const channelMappings = {
+              'Movistar': 'M+',
+              'LaLiga': 'La Liga',
+              'Premier': 'Premier League',
+              'Eurosport': '★EUROSPORT',
+              'Copa del Rey': 'Copa del Rey',
+              'Liga de Campeones': 'Liga de Campeones'
+          };
+
           if (table) {
               const rows = table.querySelectorAll('tr');
               
               rows.forEach((row, index) => {
-                  if (index === 0) return; // Skip header row
+                  if (index === 0) return; // Skip header
                   
                   const cells = row.querySelectorAll('td');
                   if (cells.length >= 6) {
@@ -2123,8 +2120,6 @@
                       const canalesCell = cells[5];
                       const links = canalesCell.querySelectorAll('a[href^="acestream://"]');
                       
-                      const sportEmoji = sportEmojiMap[normalizeText(sportName)] || '';
-                      
                       if (links.length > 0) {
                           
                           const eventStartTime = getEventTime(date, time);
@@ -2133,16 +2128,7 @@
                           
                           links.forEach(link => {
                               const acestreamId = link.href.split('://')[1];
-                              let channelName = link.textContent.trim().split('-->')[0].trim();
-                              
-                              const channelMappings = {
-                                  'Movistar': 'M+',
-                                  'LaLiga': 'La Liga',
-                                  'Premier': 'Premier League',
-                                  'Eurosport': '★EUROSPORT',
-                                  'Copa del Rey': 'Copa del Rey',
-                                  'Liga de Campeones': 'Liga de Campeones'
-                              };
+                              let channelName = link.textContent.trim();
                               
                               for (const key in channelMappings) {
                                   const regex = new RegExp(key, 'gi');
@@ -2170,7 +2156,7 @@
                                   multiAudio: multiAudio,
                                   isKnown: true,
                                   source: 'events',
-                                  event: { time, competition, match, date, sportEmoji, sportName, startTime: eventStartTime.getTime(), endTime: eventEndTime.getTime() }
+                                  event: { time, competition, match, date, sportEmoji: '', sportName, startTime: eventStartTime.getTime(), endTime: eventEndTime.getTime() }
                               });
                               trackFirstSeen(acestreamId);
                           });
@@ -2727,6 +2713,49 @@
           
           sortedGroupKeys.forEach(groupKey => {
               const group = groups[groupKey];
+              
+              if (group.isEvent) {
+                  group.channels.sort((a, b) => {
+                      // Prioridad 1: Canales en directo
+                      if (a.isLive && !b.isLive) return -1;
+                      if (!a.isLive && b.isLive) return 1;
+                      
+                      // NUEVA PRIORIDAD 2: Canales con '4' al final del nombre (van al final)
+                      const aHasSuffix4 = normalizeText(a.name).trim().endsWith('4');
+                      const bHasSuffix4 = normalizeText(b.name).trim().endsWith('4');
+
+                      if (aHasSuffix4 && !bHasSuffix4) return 1; // 'a' va después de 'b'
+                      if (!aHasSuffix4 && bHasSuffix4) return -1; // 'a' va antes de 'b'
+                      
+                      // Prioridad 3 (Original Prioridad 2): Fuente
+                      const sourcePriorityMap = { 'events': 4, 'gist': 3, 'shickat': 2, 'elcano': 1, 'history': 0 };
+                      const sourceA = sourcePriorityMap[a.source] || 0;
+                      const sourceB = sourcePriorityMap[b.source] || 0;
+                      if (sourceB !== sourceA) {
+                          return sourceB - sourceA;
+                      }
+                      
+                      // Prioridad 4 (Original Prioridad 3): Calidad
+                      const qualityMap = { '4K': 5, 'FHD': 4, 'HD': 3, 'SD': 2, 'N/A': 1, 'UHD': 6 };
+                      const qualityA = qualityMap[standardizeQuality(a.quality)] || 0;
+                      const qualityB = qualityMap[standardizeQuality(b.quality)] || 0;
+                      if (qualityB !== qualityA) {
+                          return qualityB - qualityA;
+                      }
+                      return 0;
+                  });
+              }
+              
+              group.channels.sort((a, b) => {
+                  // Re-sort a favor de los favoritos después de la ordenación por directo/calidad
+                  const aIsFavorite = state.favorites.includes(a.id);
+                  const bIsFavorite = state.favorites.includes(b.id);
+
+                  if (aIsFavorite && !bIsFavorite) return -1;
+                  if (!aIsFavorite && bIsFavorite) return 1;
+                  
+                  return 0;
+              });
               
               if (group.isEvent && !state.hideEventDetails) {
                   const formattedDate = formatEventDate(group.date); 
