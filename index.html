@@ -674,7 +674,7 @@
       .events-badge { background-color: var(--events-source-color); color: white; }
       .shickat-badge { background-color: var(--shickat-badge); color: white; }
       
-      .channel-number-badge-button {
+      .channel-number-badge {
         position: absolute;
         top: 50%;
         transform: translateY(-50%);
@@ -695,16 +695,15 @@
         background: rgba(var(--primary-rgb), 0.9);
         color: white;
         border: none;
-        cursor: pointer;
         z-index: 20;
       }
 
-      .channel-number-badge-button.gist-badge { background-color: var(--gist-source-color); }
-      .channel-number-badge-button.elcano-badge { background-color: var(--elcano-source-color); }
-      .channel-number-badge-button.events-badge { background-color: var(--events-source-color); }
-      .channel-number-badge-button.shickat-badge { background-color: var(--shickat-badge); }
+      .channel-number-badge.gist-badge { background-color: var(--gist-source-color); }
+      .channel-number-badge.elcano-badge { background-color: var(--elcano-source-color); }
+      .channel-number-badge.events-badge { background-color: var(--events-source-color); }
+      .channel-number-badge.shickat-badge { background-color: var(--shickat-badge); }
 
-      .channel-number-badge-button .channel-number {
+      .channel-number-badge .channel-number {
         font-weight: 600;
         white-space: nowrap;
         color: white; 
@@ -712,13 +711,13 @@
         margin-bottom: 2px;
       }
 
-      .channel-number-badge-button .source-initials {
+      .channel-number-badge .source-initials {
         font-size: 0.6rem;
         font-weight: bold;
         color: white;
       }
 
-      .channel-number-badge-button:hover {
+      .channel-number-badge:hover {
         transform: translateY(-50%) scale(1.1);
       }
 
@@ -1062,6 +1061,19 @@
           margin: 1.5rem 0;
           opacity: 0.7;
           box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+
+      .channel-logo {
+        font-size: 1.2rem;
+        margin-right: 0.5rem;
+      }
+
+      .events-section-header, .channels-section-header {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: var(--primary);
+        margin: 1rem 0 0.5rem;
+        text-align: center;
       }
     </style>
 </head>
@@ -2094,21 +2106,22 @@
           const doc = parser.parseFromString(htmlContent, 'text/html');
           const table = doc.querySelector('table');
           
-          
-          const channelMappings = {
-              'Movistar': 'M+',
-              'LaLiga': 'La Liga',
-              'Premier': 'Premier League',
-              'Eurosport': '★EUROSPORT',
-              'Copa del Rey': 'Copa del Rey',
-              'Liga de Campeones': 'Liga de Campeones'
+          const sportEmojiMap = {
+              'futbol': '⚽',
+              'baloncesto': '🏀',
+              'tenis': '🎾',
+              'boxeo': '🥊',
+              'ciclismo': '🚴',
+              'motor': '🏁',
+              'formula 1': '🏎️',
+              'f1': '🏎️'
           };
-
+          
           if (table) {
               const rows = table.querySelectorAll('tr');
               
               rows.forEach((row, index) => {
-                  if (index === 0) return; // Skip header
+                  if (index === 0) return; // Skip header row
                   
                   const cells = row.querySelectorAll('td');
                   if (cells.length >= 6) {
@@ -2120,6 +2133,8 @@
                       const canalesCell = cells[5];
                       const links = canalesCell.querySelectorAll('a[href^="acestream://"]');
                       
+                      const sportEmoji = sportEmojiMap[normalizeText(sportName)] || '';
+                      
                       if (links.length > 0) {
                           
                           const eventStartTime = getEventTime(date, time);
@@ -2128,7 +2143,16 @@
                           
                           links.forEach(link => {
                               const acestreamId = link.href.split('://')[1];
-                              let channelName = link.textContent.trim();
+                              let channelName = link.textContent.trim().split('-->')[0].trim();
+                              
+                              const channelMappings = {
+                                  'Movistar': 'M+',
+                                  'LaLiga': 'La Liga',
+                                  'Premier': 'Premier League',
+                                  'Eurosport': '★EUROSPORT',
+                                  'Copa del Rey': 'Copa del Rey',
+                                  'Liga de Campeones': 'Liga de Campeones'
+                              };
                               
                               for (const key in channelMappings) {
                                   const regex = new RegExp(key, 'gi');
@@ -2156,7 +2180,7 @@
                                   multiAudio: multiAudio,
                                   isKnown: true,
                                   source: 'events',
-                                  event: { time, competition, match, date, sportEmoji: '', sportName, startTime: eventStartTime.getTime(), endTime: eventEndTime.getTime() }
+                                  event: { time, competition, match, date, sportEmoji, sportName, startTime: eventStartTime.getTime(), endTime: eventEndTime.getTime() }
                               });
                               trackFirstSeen(acestreamId);
                           });
@@ -2198,6 +2222,15 @@
               { name: 'Series', class: 'series' }
           ];
 
+          const channelSportMap = {
+              'f1': '🏎️',
+              'golf': '⛳',
+              'deportes': '🏀⚽🥊',
+              'liga de campeones': '🏆',
+              'la liga': '⚽',
+              // Add more as needed
+          };
+
           state.channelsData.forEach(channel => {
               let result = channel.name;
               brands.forEach(brand => {
@@ -2213,6 +2246,16 @@
               const comediaRegex = /(comedia)/gi;
               result = result.replace(comediaRegex, '<span class="degradado-comedia">Comedia</span>');
               channel.displayableName = result;
+
+              if (!channel.event) {
+                  const normalizedName = normalizeText(channel.name);
+                  for (const key in channelSportMap) {
+                      if (normalizedName.includes(key)) {
+                          channel.sportEmoji = channelSportMap[key];
+                          break;
+                      }
+                  }
+              }
           });
       }
 
@@ -2326,7 +2369,7 @@
 
       function formatEventDate(dateString) {
           if (dateString.toLowerCase() === 'hoy') {
-              return 'Hoy';
+              return 'EVENTOS DE HOY';
           }
           if (dateString.toLowerCase() === 'mañana') {
               return 'Mañana';
@@ -2351,7 +2394,7 @@
                           date.getFullYear() === today.getFullYear();
           
           if (isToday) {
-              return 'Hoy';
+              return 'EVENTOS DE HOY';
           }
           
           return `${dayOfWeek} ${dayOfMonth} de ${monthName}`;
@@ -2807,34 +2850,19 @@
               `;
               fragment.appendChild(groupElement);
 
-              // Lógica de inserción del separador
-              if (!separatorAdded) {
-                  const nextGroupIndex = sortedGroupKeys.indexOf(groupKey) + 1;
-                  const nextGroupKey = sortedGroupKeys[nextGroupIndex];
-                  const nextGroup = nextGroupKey ? groups[nextGroupKey] : null;
-
-                  // 1. Si el grupo actual es de evento Y no es de directo (solo si había directos antes)
-                  //    O si el grupo actual es de evento Y es el último grupo de evento Y no tiene directos.
-                  //    O si el siguiente grupo NO es de evento (es decir, es un canal permanente).
-                  
-                  const isLastEventGroup = !nextGroup || !nextGroup.isEvent;
-                  const isAfterLive = hasLiveEvents && !group.hasLive;
-                  const isLastLiveEventGroup = group.hasLive && (isLastEventGroup || !nextGroup.hasLive); 
-                  
-                  
-                  if (isLastLiveEventGroup) {
+              // Lógica de inserción del separador y header de CANALES
+              if (!separatorAdded && !group.isEvent) {
+                  if (!separatorAdded) {
                       const separator = document.createElement('hr');
                       separator.className = 'live-separator';
                       fragment.appendChild(separator);
-                      separatorAdded = true; 
-                  } else if (isLastEventGroup && !hasLiveEvents && group.isEvent) { 
-                      // Caso: No hay directos en absoluto, pero el grupo actual es el último de eventos.
-                      const separator = document.createElement('hr');
-                      separator.className = 'live-separator';
-                      fragment.appendChild(separator);
-                      separatorAdded = true; 
+                      separatorAdded = true;
                   }
-                  
+
+                  const channelsHeader = document.createElement('h2');
+                  channelsHeader.className = 'channels-section-header';
+                  channelsHeader.textContent = 'CANALES';
+                  fragment.appendChild(channelsHeader);
               }
               
           });
@@ -2891,12 +2919,10 @@
           const displayQuality = standardizeQuality(channel.quality);
           
           const sourceButton = `
-              <button class="channel-number-badge-button ${sourceBadgeClass}" 
-                      data-id="${channel.id}" 
-                      title="Copiar enlace (AceStream ID: ${channel.id})">
+              <div class="channel-number-badge ${sourceBadgeClass}">
                   <span class="channel-number">${channel.number}</span>
                   <span class="source-initials">${sourceBadgeText}</span>
-              </button>
+              </div>
           `;
 
           // Eliminamos el indicador de texto LIVE de la tarjeta
@@ -2911,6 +2937,7 @@
                       ${displayQuality} ${channel.multiAudio ? '🎧' : ''}
                   </div>
                   <div class="channel-header">
+                      <span class="channel-logo">${channel.sportEmoji || ''}</span>
                       <div class="channel-name">${channel.displayableName} ${liveIndicator}</div>
                   </div>
                   ${sourceButton}
@@ -3272,20 +3299,14 @@
           });
           changePrimaryColor(state.primaryColor);
           
-          document.addEventListener('click', (e) => {
-              if (e.target.closest('.channel-number-badge-button')) {
-                  const button = e.target.closest('.channel-number-badge-button');
-                  e.stopPropagation(); 
-                  const channelId = button.dataset.id;
-                  showCopyModal(channelId);
-              }
-          });
-          
+          // Remove the listener for badge click
+          // document.addEventListener('click', (e) => { if (e.target.closest('.channel-number-badge-button')) { ... } }); is removed
+
           document.addEventListener('click', (e) => {
               const card = e.target.closest('.channel-card');
-              const numberButton = e.target.closest('.channel-number-badge-button');
+              const numberBadge = e.target.closest('.channel-number-badge');
 
-              if (card && !numberButton) {
+              if (card && !numberBadge) {
                   const channelId = card.dataset.id;
                   const channelData = state.channelsData.find(c => c.id === channelId);
 
